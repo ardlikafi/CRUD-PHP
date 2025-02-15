@@ -22,17 +22,50 @@ class User {
         $this->conn = $db;
     }
 
-    // Read Data (Mengambil Data)
-    public function read() {
-        $query = "SELECT id, nama_lengkap, user, email, is_aktif, level_akses, last_login, last_ip, foto, create_at, update_at FROM " . $this->table_name . " ORDER BY nama_lengkap";
+  // Read Data (Mengambil Data) dengan Pencarian dan Paginasi
+    public function readAll($search_term = '', $start_from = 0, $records_per_page = 10) {
+        $query = "SELECT id, nama_lengkap, user, email, is_aktif, level_akses, last_login, last_ip, foto, create_at, update_at FROM " . $this->table_name;
+
+        if (!empty($search_term)) {
+            $query .= " WHERE nama_lengkap LIKE :search OR email LIKE :search OR user LIKE :search";
+        }
+
+        $query .= " ORDER BY nama_lengkap LIMIT :start, :per_page";
+
         $stmt = $this->conn->prepare($query);
+
+        if (!empty($search_term)) {
+            $search_term = "%{$search_term}%";
+            $stmt->bindParam(':search', $search_term);
+        }
+
+        $stmt->bindParam(':start', $start_from, PDO::PARAM_INT);
+        $stmt->bindParam(':per_page', $records_per_page, PDO::PARAM_INT);
+
         $stmt->execute();
         return $stmt;
     }
 
+    // Menghitung total record setelah pencarian
+    public function countAll($search_term = '') {
+        $query = "SELECT COUNT(*) FROM " . $this->table_name;
+        if (!empty($search_term)) {
+            $query .= " WHERE nama_lengkap LIKE :search OR email LIKE :search OR user LIKE :search";
+        }
+
+        $stmt = $this->conn->prepare($query);
+
+        if (!empty($search_term)) {
+            $search_term = "%{$search_term}%";
+            $stmt->bindParam(':search', $search_term);
+        }
+         $stmt->execute();
+         return $stmt->fetchColumn();
+    }
+
     // Create Data (Membuat Data Baru)
     public function create($nama_lengkap, $user, $pass, $email, $is_aktif, $level_akses, $foto) {
-        $query = "INSERT INTO " . $this->table_name . " (nama_lengkap, user, pass, email, is_aktif, level_akses, foto, create_at) VALUES (:nama_lengkap, :user, :pass, :email, :is_aktif, :level_akses, :foto, NOW())";
+        $query = "INSERT INTO " . $this->table_name . " (nama_lengkap, user, pass, email, is_aktif, level_akses, foto, create_at,last_login,last_ip) VALUES (:nama_lengkap, :user, :pass, :email, :is_aktif, :level_akses, :foto, NOW(),null,null)";
         $stmt = $this->conn->prepare($query);
 
         // Sanitize data (Mencegah SQL Injection)
@@ -93,7 +126,7 @@ class User {
         $is_aktif = (int)$is_aktif;
         $level_akses = htmlspecialchars(strip_tags($level_akses));
 		$foto = htmlspecialchars(strip_tags($foto));
-
+        
         // Bind parameters
         $stmt->bindParam(":id", $id);
         $stmt->bindParam(":nama_lengkap", $nama_lengkap);
